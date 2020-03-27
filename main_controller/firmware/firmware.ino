@@ -1,5 +1,7 @@
 #include <Encoder.h>
 #include <PID_v1.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
 
 class PIDController {
   private:
@@ -135,7 +137,7 @@ class L298N {
 };
 
 // PID controller constants
-const int loopTime = 10;
+const int loopTime = 10;      // milliseconds
 unsigned long startTime = 0;
 
 // Motor 1 configuration
@@ -149,7 +151,6 @@ L298N Motor1(motor1_dir1, motor1_dir2, motor1_enable);
 Encoder Motor1Encoder(encoder1_pin_A, encoder1_pin_B);
 PIDController Motor1PID(2, 18, 0, loopTime);
 
-
 // Motor 2 configuration
 const int encoder2_pin_A = 18;
 const int encoder2_pin_B = 19;
@@ -161,11 +162,41 @@ L298N Motor2(motor2_dir1, motor2_dir2, motor2_enable);
 Encoder Motor2Encoder(encoder2_pin_A, encoder2_pin_B);
 PIDController Motor2PID(2, 18, 0, loopTime);
 
+// MPU6050 IMU configuration
+MPU6050 accelgyro;
+int ax, ay, az;
+int gx, gy, gz;
+const float GYROSCOPE_SENSITIVITY = 65.536;
+const float ACCELEROMETER_SENSITIVITY = 8192.0;
+float pitch, roll; //need to create PID loop for balancing
+
+void complementaryFilter(int ax, int ay, int az, int gx, int gy, int gz, float *pitch, float *roll) {
+  float pitchAcc, rollAcc;
+
+  *pitch += ((float)gx / GYROSCOPE_SENSITIVITY) * loopTime/1000;
+  *roll -= ((float)gy / GYROSCOPE_SENSITIVITY) * loopTime/1000;
+
+  int forceMagnitudeApprox = abs(ax) + abs(ay) + abs(az);
+  if (forceMagnitudeApprox > 8192 && forceMagnitudeApprox < 32768) {
+    pitchAcc = atan2f((float)ay, (float)az) * 180 / PI;
+    *pitch = *pitch * 0.98 + pitchAcc * 0.02;
+    
+    rollAcc = atan2f((float)ax, (float)az) * 180 / PI;
+    *roll = *roll * 0.98 + rollAcc * 0.02;
+  }
+}
+
 void setup() {
   
   Serial.begin(115200);
   //while (!Serial) {;}
 
+  accelgyro.initialize();
+  if (accelgyro.testConnection() == false) {
+    while (1) {;}
+  }
+
+  // the OK light, means setup was successful
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
@@ -184,6 +215,11 @@ void loop() {
 
     Motor1Encoder.write(0);
     Motor2Encoder.write(0);
+
+    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    complementaryFilter(ax, ay, az, gx, gy, gz, &pitch, &roll);
+    Serial.print("pitch/roll: "); Serial.print(pitch); Serial.print("\t"); Serial.println(roll); 
+
     startTime = millis();
   }
   
@@ -194,12 +230,12 @@ void loop() {
   
   //for Serial plotter and PID tuning
   //Serial.println(timeDelta);
-  
+  /*
   Serial.print(-300); Serial.print(" "); //for window spacing
   Serial.print(300); Serial.print(" ");  //for window spacing
   Serial.print(Motor1PID.getInput(), 5); Serial.print(" ");
   Serial.print(Motor1PID.getSetpoint(), 5); Serial.print(" ");
   Serial.print(Motor2PID.getInput(), 5); Serial.print(" ");
   Serial.println(Motor2PID.getSetpoint(), 5);
-  
+  */
 }
