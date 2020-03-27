@@ -1,4 +1,3 @@
-#include <Servo.h>
 #include <Encoder.h>
 #include <PID_v1.h>
 
@@ -135,108 +134,48 @@ class L298N {
       }
 };
 
+// PID controller constants
 const int loopTime = 10;
 unsigned long startTime = 0;
 
-L298N Motor1(4, 7, 5, true);
-Encoder Motor1Encoder(0, 1);
+// Motor 1 configuration
+const int encoder1_pin_A = 2;
+const int encoder1_pin_B = 3;
+const int motor1_enable = 4;
+const int motor1_dir1 = 50;
+const int motor1_dir2 = 51;
+
+L298N Motor1(motor1_dir1, motor1_dir2, motor1_enable);
+Encoder Motor1Encoder(encoder1_pin_A, encoder1_pin_B);
 PIDController Motor1PID(2, 18, 0, loopTime);
 
-L298N Motor2(8, 12, 6);
-Encoder Motor2Encoder(2, 3);
+
+// Motor 2 configuration
+const int encoder2_pin_A = 18;
+const int encoder2_pin_B = 19;
+const int motor2_enable = 5;
+const int motor2_dir1 = 52;
+const int motor2_dir2 = 53;
+
+L298N Motor2(motor2_dir1, motor2_dir2, motor2_enable);
+Encoder Motor2Encoder(encoder2_pin_A, encoder2_pin_B);
 PIDController Motor2PID(2, 18, 0, loopTime);
 
-Servo Servo1;
-Servo Servo2;
-
-const int cmdLength = 5;
-char input[cmdLength] = {0};
-int index = 0;
-
-void parseSerialCMD() {
-  if (Serial.available() > 0) {
-    input[index] = Serial.read();
-    index++;
-
-    if (index == cmdLength) {
-
-      switch (input[0]) {
-        case '1':
-          //motor1 control
-          if (input[1] == '+') {
-            int speed = 0;
-            speed += ((int)input[2]-48)*100;
-            speed += ((int)input[3]-48)*10;
-            speed += ((int)input[4]-48)*1;
-            Motor1PID.setSpeed(speed);
-          } else if (input[1] == '-') {
-            int speed = 0;
-            speed -= ((int)input[2]-48)*100;
-            speed -= ((int)input[3]-48)*10;
-            speed -= ((int)input[4]-48)*1;
-            Motor1PID.setSpeed(speed);
-          }
-          break;
-        case '2':
-          //motor2 control
-          if (input[1] == '+') {
-            int speed = 0;
-            speed += ((int)input[2]-48)*100;
-            speed += ((int)input[3]-48)*10;
-            speed += ((int)input[4]-48)*1;
-            Motor2PID.setSpeed(speed);
-          } else if (input[1] == '-') {
-            int speed = 0;
-            speed -= ((int)input[2]-48)*100;
-            speed -= ((int)input[3]-48)*10;
-            speed -= ((int)input[4]-48)*1;
-            Motor2PID.setSpeed(speed);
-          }
-          break;
-        case '3':
-          //servo1 control
-          {
-            int pos = 0;
-            pos += ((int)input[1]-48)*100;
-            pos += ((int)input[2]-48)*10;
-            pos += ((int)input[3]-48)*1;
-            Servo1.write(pos);
-          }
-          break;
-        case '4':
-          //servo2 control
-          {
-            int pos = 0;
-            pos += ((int)input[1]-48)*100;
-            pos += ((int)input[2]-48)*10;
-            pos += ((int)input[3]-48)*1;
-            Servo2.write(pos);
-          }
-          break;
-      }
-
-      
-      Serial.flush();
-      index = 0;
-    }
-  }
-}
-
 void setup() {
-  Servo1.attach(9);
-  Servo2.attach(10);
   
   Serial.begin(115200);
-  while (!Serial) {;}
+  //while (!Serial) {;}
 
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
+
+  Motor2PID.setSpeed(50);
+  Motor1PID.setSpeed(50);
 
   startTime = millis();
 }
 
 void loop() {
-  parseSerialCMD();
   
   unsigned long timeDelta = millis() - startTime;
   if (timeDelta >= loopTime) {
@@ -247,21 +186,20 @@ void loop() {
     Motor2Encoder.write(0);
     startTime = millis();
   }
-
+  
   Motor1PID.update();
   Motor2PID.update();
   Motor1.drive(Motor1PID.getOutput());
   Motor2.drive(Motor2PID.getOutput());
-
+  
   //for Serial plotter and PID tuning
   //Serial.println(timeDelta);
-  /*
-  Serial.print(-300); Serial.print(" ");
-  Serial.print(300); Serial.print(" ");
+  
+  Serial.print(-300); Serial.print(" "); //for window spacing
+  Serial.print(300); Serial.print(" ");  //for window spacing
   Serial.print(Motor1PID.getInput(), 5); Serial.print(" ");
   Serial.print(Motor1PID.getSetpoint(), 5); Serial.print(" ");
   Serial.print(Motor2PID.getInput(), 5); Serial.print(" ");
   Serial.println(Motor2PID.getSetpoint(), 5);
-  */
   
 }
