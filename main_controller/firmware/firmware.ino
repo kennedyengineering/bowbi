@@ -3,6 +3,65 @@
 #include "I2Cdev.h"
 #include "MPU6050.h"
 
+class PIDControllerIMU {
+  private:
+    const int loopTime;
+    const float Kp;
+    const float Ki;
+    const float Kd;
+    double pitch;
+    double Setpoint;
+    double Input;
+    double Output;
+    PID pid;
+
+    double mapDouble(double x, double in_min, double in_max, double out_min, double out_max) {
+      return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+    }
+
+  public:
+    PIDControllerIMU(float _Kp, float _Ki, float _Kd, int _loopTime)
+      : Kp(_Kp), Ki(_Ki), Kd(_Kd), loopTime(_loopTime), pid(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT)
+    {
+      Setpoint = 0;
+      Input = 0;
+      Output = 0;
+      pitch = 0;
+      
+      pid.SetOutputLimits(-100, 100);
+      pid.SetMode(AUTOMATIC);
+      pid.SetSampleTime(loopTime);
+    }
+
+    void setPitch(double _pitch) {
+      if (_pitch > 90.0) _pitch = 90.0;
+      else if (_pitch < -90.0) _pitch = -90.0;
+
+      Setpoint = mapDouble(_pitch, -90, 90, -100, 100); //convert pitch angles into motor speed percentages
+    }
+
+    void updatePitch(double _pitch) {
+      pitch = _pitch;
+    }
+
+    void update() {
+      Input = mapDouble(pitch, -90, 90, -100, 100);
+      pid.Compute();
+    }
+
+    double getOutput() {
+      return Output;
+    }
+
+    double getSetpoint() {
+      return Setpoint;
+    }
+
+    double getInput() {
+      return Input;
+    }
+};
+
 class PIDController {
   private:
     const int loopTime;
@@ -168,7 +227,8 @@ int ax, ay, az;
 int gx, gy, gz;
 const float GYROSCOPE_SENSITIVITY = 65.536;
 const float ACCELEROMETER_SENSITIVITY = 8192.0;
-float pitch, roll; //need to create PID loop for balancing
+float pitch, roll; //need to create PID loop for balancing //make pitch go to zero
+PIDControllerIMU IMUPID(2, 18, 0, loopTime);
 
 void complementaryFilter(int ax, int ay, int az, int gx, int gy, int gz, float *pitch, float *roll) {
   float pitchAcc, rollAcc;
@@ -200,8 +260,9 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
-  Motor2PID.setSpeed(50);
-  Motor1PID.setSpeed(50);
+  Motor2PID.setSpeed(0);
+  Motor1PID.setSpeed(0);
+  IMUPID.setPitch(0);
 
   startTime = millis();
 }
@@ -218,10 +279,17 @@ void loop() {
 
     accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
     complementaryFilter(ax, ay, az, gx, gy, gz, &pitch, &roll);
-    Serial.print("pitch/roll: "); Serial.print(pitch); Serial.print("\t"); Serial.println(roll); 
+    //Serial.print("pitch/roll: "); Serial.print(pitch); Serial.print("\t"); Serial.println(roll); 
+    IMUPID.updatePitch(pitch);
 
     startTime = millis();
   }
+
+  IMUPID.update();
+  //Serial.println(IMUPID.getOutput());
+  //update motorPID setpoints
+  Motor2PID.setSpeed(IMUPID.getOutput());
+  Motor1PID.setSpeed(-1*IMUPID.getOutput());
   
   Motor1PID.update();
   Motor2PID.update();

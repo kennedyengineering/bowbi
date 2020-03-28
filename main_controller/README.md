@@ -15,6 +15,9 @@ https://www.pjrc.com/teensy/td_libs_Encoder.html#optimize
 Also uses the Arduino PID Library - Version 1.2.1 by Brett Beauregard
 https://github.com/br3ttb/Arduino-PID-Library/
 
+Uses the I2cdevlib and MPU6050 class by jrowberg
+https://github.com/jrowberg/i2cdevlib
+
 # Notes
 The Arduino Mega has interrupts on pins 2, 3, 18, 19, 20, 21
 though 20, 21 are used for I2C communication
