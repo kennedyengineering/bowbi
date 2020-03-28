@@ -249,15 +249,32 @@ void complementaryFilter(int ax, int ay, int az, int gx, int gy, int gz, float *
 void setup() {
   
   Serial.begin(115200);
-  //while (!Serial) {;}
+  //while (!Serial) {;} //use if serial communication is required
 
+  // the OK light, means setup was successful
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+
+  // check if IMU is connected
   accelgyro.initialize();
   if (accelgyro.testConnection() == false) {
     while (1) {;}
   }
 
+  // wait for IMU readings to stablize before starting main loop
+  double minPitchDelta = 0.01;
+  double pitchDelta = 200;
+  double lastPitchReading = 200;
+  while (abs(pitchDelta) > minPitchDelta) {
+    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    complementaryFilter(ax, ay, az, gx, gy, gz, &pitch, &roll);
+    pitchDelta = lastPitchReading - pitch;
+    lastPitchReading = pitch;
+    //Serial.println(pitchDelta, 5);
+    delay(loopTime); //for the complementary filter
+  }
+
   // the OK light, means setup was successful
-  pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
   Motor2PID.setSpeed(0);
